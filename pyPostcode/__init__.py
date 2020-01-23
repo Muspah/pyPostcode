@@ -7,10 +7,7 @@ pyPostcode by Stefan Jansen
 pyPostcode is an api wrapper for http://postcodeapi.nu
 '''
 
-try:
-    from urllib.request import urlopen, Request  # for Python 3
-except ImportError:
-    from urllib2 import urlopen, Request  # for Python 2
+from urllib.request import urlopen, Request
 
 import json
 import logging
@@ -28,17 +25,14 @@ class pyPostcodeException(Exception):
 
 class Api(object):
 
-    def __init__(self, api_key, api_version=(2, 0, 0)):
+    def __init__(self, api_key, api_version=(3, 0, 0)):
         if api_key is None or api_key is '':
             raise pyPostcodeException(
                 0, "Please request an api key on http://postcodeapi.nu")
 
         self.api_key = api_key
         self.api_version = api_version
-        if api_version >= (2, 0, 0):
-            self.url = 'https://postcode-api.apiwise.nl'
-        else:
-            self.url = 'http://api.postcodeapi.nu'
+        self.url = 'https://api.postcodeapi.nu'
 
     def handleresponseerror(self, status):
         if status == 401:
@@ -58,9 +52,6 @@ class Api(object):
         headers = {
             "Accept": "application/json",
             "Accept-Language": "en",
-            # this is the v1 api
-            "Api-Key": self.api_key,
-            # this is the v2 api
             "X-Api-Key": self.api_key,
         }
 
@@ -77,25 +68,15 @@ class Api(object):
             resultdata = resultdata.decode("utf-8")  # for Python 3
         jsondata = json.loads(resultdata)
 
-        if self.api_version >= (2, 0, 0):
-            data = jsondata.get('_embedded', {}).get('addresses', [])
-            if data:
-                data = data[0]
-            else:
-                data = None
+        if jsondata:
+            data = jsondata
         else:
-            data = jsondata['resource']
+            data = None
 
         return data
 
-    def getaddress(self, postcode, house_number=None):
-        if house_number is None:
-            house_number = ''
-
-        if self.api_version >= (2, 0, 0):
-            path = '/v2/addresses/?postcode={0}&number={1}'
-        else:
-            path = '/{0}/{1}'
+    def getaddress(self, postcode, house_number):
+        path = '/v3/lookup/{0}/{1}'
         path = path.format(
             str(postcode),
             str(house_number))
@@ -129,10 +110,6 @@ class Resource(object):
 
     @property
     def house_number(self):
-        '''
-        House number can be empty when postcode search
-        is used without house number
-        '''
         return self._data.get('number', self._data.get('house_number'))
 
     @property
@@ -141,7 +118,7 @@ class Resource(object):
 
     @property
     def town(self):
-        return self._data.get('city', {}).get('label', self._data.get('town'))
+        return self._data.get('city')
 
     @property
     def municipality(self):
@@ -156,31 +133,3 @@ class Resource(object):
         if isinstance(result, dict):
             result = result.get('label')
         return result
-
-    def _get_geo_coordinates(self, geo_type):
-        return self._data.get('geo', {}).get('center', {}).get(geo_type)\
-            .get('coordinates', [None, None])
-
-    @property
-    def latitude(self):
-        if self._data.get('latitude'):
-            return self._data.get('latitude')
-        return self._get_geo_coordinates('wgs84')[1]
-
-    @property
-    def longitude(self):
-        if self._data.get('longitude'):
-            return self._data.get('longitude')
-        return self._get_geo_coordinates('wgs84')[0]
-
-    @property
-    def x(self):
-        if self._data.get('x'):
-            return self._data.get('x')
-        return self._get_geo_coordinates('rd')[0]
-
-    @property
-    def y(self):
-        if self._data.get('y'):
-            return self._data.get('y')
-        return self._get_geo_coordinates('rd')[1]
